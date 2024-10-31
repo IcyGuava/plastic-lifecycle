@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Plastic Lifecycle</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .card {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            max-width: 600px;
+            width: 100%;
+        }
+        .card-title {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .card-description {
+            font-size: 16px;
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .bottle-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+        }
+        .button-container {
+            display: flex;
+            justify-content: space-between;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2 id="stepTitle" class="card-title"></h2>
+        <p id="stepDescription" class="card-description"></p>
+        <div class="bottle-container">
+            <svg id="bottle" width="220" height="530"></svg>
+        </div>
+        <div id="legend" class="legend"></div>
+        <div class="button-container">
+            <button id="prevButton" onclick="handlePrevious()">Previous</button>
+            <button id="nextButton" onclick="handleNext()">Next</button>
+        </div>
+    </div>
+
+    <script>
+        // Color Definitions for Lifecycle Stages
+        const colorConsumed = "#5C62D6";
+        const colorManaged = "#43A5BE";
+        const colorMismanaged = "#F5C26B";
+        const colorRecycled = "#4FB06D";
+        const colorLandfill = "#D49137";
+        const colorIncinerated = "#BF2C34";
+        const colorOcean = "#F07857";
+        const colorUnknown = "#EBB8DD";
+
+        // Define the Data and Steps
+        const steps = [
+            {
+                title: "Plastic Consumption 📦",
+                description: "Americans use around 84.3 million metric tons of plastic every year, including imported plastic.",
+                data: [
+                    { label: "Total Consumption", percentage: 100, actualValue: "84.3 million metric tons", color: colorConsumed }
+                ]
+            },
+            {
+                title: "Waste Management 🗑️",
+                description: "Most plastic waste is managed, but a small portion is mismanaged.",
+                data: [
+                    { label: "Properly Managed", percentage: 99.68, actualValue: "Approximately 84.03 million metric tons", color: colorManaged },
+                    { label: "Mismanaged", percentage: 0.32, actualValue: "267,469 metric tons", color: colorMismanaged }
+                ]
+            },
+            {
+                title: "Recycling ♻️",
+                description: "Only about 3.67% of all consumed plastic is recycled, totaling 3.09 million metric tons.",
+                data: [
+                    { label: "Recycled", percentage: 3.67, actualValue: "3.09 million metric tons", color: colorRecycled },
+                    { label: "Not Recycled", percentage: 96.33, actualValue: "81.21 million metric tons", color: colorManaged }
+                ]
+            },
+            {
+                title: "Final Destination 🌊",
+                description: "Here's where plastic ends up: landfills, incinerated, or polluting oceans.",
+                data: [
+                    { label: "Recycled", percentage: 3.67, actualValue: "3.09 million metric tons", color: colorRecycled },
+                    { label: "Landfilled", percentage: 75.6, actualValue: "63.7 million metric tons", color: colorLandfill },
+                    { label: "Incinerated", percentage: 6.6, actualValue: "5.6 million metric tons", color: colorIncinerated },
+                    { label: "Ocean Emissions", percentage: 0.003, actualValue: "2,431 metric tons", color: colorOcean },
+                    { label: "Unknown", percentage: 14, actualValue: "Approximately 11.8 million metric tons", color: colorUnknown }
+                ]
+            }
+        ];
+
+        let currentStep = 0;
+        let fillLevel = 0;
+        let fillInterval;
+
+        const bottleWidth = 200;
+        const bottleHeight = 400;
+        const neckWidth = 60;
+        const neckHeight = 80;
+        const capHeight = 30;
+
+        function initializeVisualization() {
+            const svg = document.getElementById('bottle');
+            svg.innerHTML = `
+                <rect x="10" y="${neckHeight + capHeight + 10}" width="${bottleWidth}" height="${bottleHeight}" fill="none" stroke="#000" stroke-width="2" />
+                <rect x="${(bottleWidth - neckWidth) / 2 + 10}" y="${capHeight + 10}" width="${neckWidth}" height="${neckHeight}" fill="none" stroke="#000" stroke-width="2" />
+                <rect x="${(bottleWidth - neckWidth) / 2 + 10}" y="10" width="${neckWidth}" height="${capHeight}" fill="none" stroke="#000" stroke-width="2" />
+            `;
+            updateStep();
+        }
+
+        function updateStep() {
+            const step = steps[currentStep];
+            document.getElementById('stepTitle').textContent = step.title;
+            document.getElementById('stepDescription').textContent = step.description;
+            updateLegend();
+            animateFill();
+        }
+
+        function updateLegend() {
+            const legendContainer = document.getElementById('legend');
+            legendContainer.innerHTML = '';
+            steps[currentStep].data.forEach(item => {
+                const legendItem = document.createElement('div');
+                legendItem.className = 'legend-item';
+                legendItem.innerHTML = `
+                    <div class="legend-color" style="background-color: ${item.color};"></div>
+                    <span>${item.label}: ${item.percentage}%</span>
+                `;
+                legendContainer.appendChild(legendItem);
+            });
+        }
+
+        function animateFill() {
+            fillLevel = 0;
+            clearInterval(fillInterval);
+            fillInterval = setInterval(() => {
+                fillLevel++;
+                updateBottleFill();
+                if (fillLevel >= 100) {
+                    clearInterval(fillInterval);
+                }
+            }, 20);
+        }
+
+        function updateBottleFill() {
+            const svg = document.getElementById('bottle');
+            const step = steps[currentStep];
+            let cumulativeHeight = 0;
+            
+            step.data.forEach((item, index) => {
+                const height = (item.percentage / 100) * bottleHeight;
+                const fillHeight = Math.min(height, Math.max(0, (fillLevel / 100) * bottleHeight - cumulativeHeight));
+                
+                let existingRect = svg.querySelector(`#fill-${index}`);
+                if (!existingRect) {
+                    existingRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                    existingRect.setAttribute('id', `fill-${index}`);
+                    svg.appendChild(existingRect);
+                }
+                
+                existingRect.setAttribute('x', '12');
+                existingRect.setAttribute('y', bottleHeight + neckHeight + capHeight + 8 - cumulativeHeight - fillHeight);
+                existingRect.setAttribute('width', bottleWidth - 4);
+                existingRect.setAttribute('height', fillHeight);
+                existingRect.setAttribute('fill', item.color);
+                
+                cumulativeHeight += fillHeight;
+            });
+        }
+
+        function handleNext() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                updateStep();
+            }
+            updateButtonStates();
+        }
+
+        function handlePrevious() {
+            if (currentStep > 0) {
+                currentStep--;
+                updateStep();
+            }
+            updateButtonStates();
+        }
+
+        function updateButtonStates() {
+            document.getElementById('prevButton').disabled = currentStep === 0;
+            document.getElementById('nextButton').disabled = currentStep === steps.length - 1;
+        }
+
+        // Initialize the visualization when the page loads
+        window.onload = function() {
+            initializeVisualization();
+            updateButtonStates();
+        };
+    </script>
+</body>
+</html>
